@@ -1,17 +1,22 @@
 <div align="center">
   <br />
-    <a href="" target="_blank">
+    <a href="https://youtu.be/xm0MCftqncA" target="_blank">
       <img src="public/readme/readme-hero.webp" alt="Project Banner">
     </a>
   <br />
 
   <div>
-<img src="https://img.shields.io/badge/-Next.js-black?style=for-the-badge&logo=Next.js&logoColor=white" />
-<img src="https://img.shields.io/badge/-Typescript-3178C6?style=for-the-badge&logo=Typescript&logoColor=white" />
+<img src="https://img.shields.io/badge/-Astro-BC52EE?style=for-the-badge&logo=astro&logoColor=white" />
+<img src="https://img.shields.io/badge/-Three.js-000000?style=for-the-badge&logo=threedotjs&logoColor=white" />
+<img src="https://img.shields.io/badge/-React_Three_Fiber-000000?style=for-the-badge&logoColor=white" /><br/>
 
+<img src="https://img.shields.io/badge/-Wix_Headless-0C6EFC?style=for-the-badge&logo=wix&logoColor=white" />
+<img src="https://img.shields.io/badge/-PostHog-F54E00?style=for-the-badge&logo=posthog&logoColor=white" />
+<img src="https://img.shields.io/badge/-TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
+<img src="https://img.shields.io/badge/-Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" />
   </div>
 
-  <h3 align="center">Project Title Here</h3>
+  <h3 align="center">3D Sneaker Store | Custom Product Configurator</h3>
 
    <div align="center">
      Build this project step by step with our detailed tutorial on <a href="https://www.youtube.com/watch?v=XUkNR-JfHwo" target="_blank"><b>JavaScript Mastery</b></a> YouTube. Join the JSM family!
@@ -29,7 +34,7 @@
 
 ## 🚨 Tutorial
 
-This repository contains the code corresponding to an in-depth tutorial available on our YouTube channel, <a href="https://www.youtube.com/@javascriptmastery/videos" target="_blank"><b>JavaScript Mastery</b></a>.
+This repository contains the code corresponding to an in-depth tutorial available on our YouTube channel, <a href="https://youtu.be/xm0MCftqncA" target="_blank"><b>JavaScript Mastery</b></a>.
 
 If you prefer visual learning, this is the perfect resource for you. Follow our tutorial to learn how to build projects like these step-by-step in a beginner-friendly manner!
 
@@ -37,7 +42,9 @@ If you prefer visual learning, this is the perfect resource for you. Follow our 
 
 ## <a name="introduction">✨ Introduction</a>
 
-AI-powered Nike-style eCommerce built with Devin AI, Next.js, Drizzle ORM, and Better Auth! Devin generates your product pages, cart, and checkout flows—powered by Stripe payments and a PostgreSQL (Neon) backend. Featuring a clean, modular UI and tools tailored for devs who want to ship fast.
+This is a 3D sneaker store with a real-time product configurator. Shoppers can spin any shoe, recolor parts like the laces and sole, and buy the exact pair they designed. The storefront is built with Astro, so pages ship almost no JavaScript and load instantly. Only the React Three Fiber customizer runs in the browser. Wix Headless powers the whole store backend: catalog, cart, checkout, member accounts and an owner dashboard. PostHog tracks where shoppers drop off, replays their sessions and runs A/B tests on whether 3D sells more.
+
+The project is also built with an agent-driven workflow. The agent gets a project memory, writes plans you approve, has its diffs reviewed, and screenshots every page against the design until they match. You can reuse that workflow on any project after this one.
 
 If you're getting started and need assistance or face any bugs, join our active Discord community with over **50k+** members. It's a place where people help each other out.
 
@@ -45,37 +52,47 @@ If you're getting started and need assistance or face any bugs, join our active 
 
 ## <a name="tech-stack">⚙️ Tech Stack</a>
 
-- **[Better Auth](https://www.better-auth.com/)** is a framework-agnostic authentication and authorization library for TypeScript. It provides built-in support for email and password authentication, social sign-on (Google, GitHub, Apple, and more), and multi-factor authentication, simplifying user authentication and account management.
+- **[Astro](https://astro.build/)** is a content-focused web framework that renders pages to HTML on the server and ships almost zero JavaScript by default. Its islands architecture hydrates only the interactive components that need it. In this project, that means the storefront loads instantly and only the 3D customizer runs in the browser.
 
-- **[Devin AI](https://docs.devin.ai/get-started/devin-intro)** is an autonomous AI software engineer by Cognition Labs that independently plans, writes, debugs, and deploys full applications from natural language prompts. It integrates with tools like Slack, Linear, and Jira to manage tasks and pull requests, and learns new technologies on the fly by reading documentation.
+- **[React](https://react.dev/)** is a component-based JavaScript library for building interactive user interfaces. Here it powers the interactive islands inside the Astro pages, most importantly the 3D product configurator.
 
-- **[Drizzle ORM](https://orm.drizzle.team/docs/overview)** is a lightweight and performant TypeScript ORM designed with developer experience in mind. It provides a seamless interface between application code and database operations while maintaining high performance and reliability.
+- **[Three.js](https://threejs.org/)** is a JavaScript library for rendering 3D graphics in the browser with WebGL. It handles the scene, lighting, materials and models behind every sneaker in the store.
 
-- **[Neon](https://neon.com/)** is a fully managed, serverless PostgreSQL database platform. It offers features like instant provisioning, autoscaling, and database branching, enabling developers to build scalable applications without managing infrastructure.
+- **[React Three Fiber](https://r3f.docs.pmnd.rs/)** is a React renderer for Three.js that lets you build 3D scenes declaratively with components and hooks. Together with Drei's ready-made helpers, it turns the sneaker models into a customizer where shoppers can rotate the shoe and recolor its parts.
 
-- **[Next.js](https://nextjs.org/docs)** is a powerful React framework for building full-stack web applications. It simplifies development with features like server-side rendering, static site generation, and API routes, enabling developers to focus on building products and shipping quickly.
+- **[Wix Headless](https://jsm.dev/wix)** gives you Wix's commerce backend through APIs and SDKs while you build the frontend yourself. It provides the product catalog, categories, cart, checkout, member accounts, SEO and an owner dashboard, and the Wix CLI handles local development, builds and releases.
 
-- **[PostgreSQL](https://www.postgresql.org/)** is a powerful, open-source relational database system known for its reliability, data integrity, and robust feature set. It supports advanced data types, full ACID compliance, and extensibility, making it suitable for a wide range of applications.
+- **[PostHog](https://jsm.dev/kix-posthog)** is a product analytics platform that combines event tracking, funnels, session replays and feature flags. In this store it shows where shoppers drop off, replays their sessions, and runs A/B tests to measure whether the 3D experience sells more.
 
-- **[Stripe](https://stripe.com/)** is a payment gateway that enables businesses to accept, process, and manage various payment methods, such as credit cards, debit cards, and digital wallets, in a secure and efficient manner. It simplifies the payment process for developers and businesses alike.
+- **[TypeScript](https://www.typescriptlang.org/)** is a strongly typed superset of JavaScript that adds static type checking to your code. It catches errors during development and keeps the store's components, API calls and 3D logic reliable as the codebase grows.
 
-- **[TypeScript](https://www.typescriptlang.org/)** is a superset of JavaScript that adds static typing, providing better tooling, code quality, and error detection for developers. It is ideal for building large-scale applications and enhances the development experience.
-
-- **[Zustand](https://zustand-demo.pmnd.rs)** is a minimal, hook-based state management library for React. It lets you manage global state with zero boilerplate, no context providers, and excellent performance through selective state subscriptions.
+- **[Tailwind CSS](https://tailwindcss.com/)** is a utility-first CSS framework for building custom designs directly in your markup. It keeps the storefront's styling consistent and responsive without switching between separate stylesheets.
 
 ## <a name="features">🔋 Features</a>
 
-👉 **Landing Page**: A fast, engaging homepage that introduces your brand and products with smooth animations and clear calls to action.
+👉 **3D Product Viewer**: Spin and inspect every sneaker from any angle in a real-time 3D scene.
 
-👉 **Product Listing Page**: Browse all products with filters, sorting, and real-time availability—powered by Devin AI-generated content for dynamic updates.
+👉 **Part-by-Part Customizer**: Recolor individual parts of the shoe, like the laces and sole, and see the changes instantly.
 
-👉 **Auth Pages**: Secure and seamless user signup, login, and password recovery using Better Auth, ensuring smooth access without backend hassles.
+👉 **Buy Your Exact Design**: The configuration you build carries into the cart, so you check out the exact pair you designed.
 
-👉 **Product Details Page**: Detailed product info, images, and reviews with AI-enhanced descriptions to help customers make confident buying decisions.
+👉 **Product Catalog & Categories**: Browse sneakers by category, with product data managed in the Wix store backend.
 
-👉 **Cart Page**: Intuitive cart management allowing users to add, remove, and update quantities, with instant price recalculations and persistent state via Zustand.
+👉 **Cart & Checkout**: A full cart and checkout flow powered by Wix eCommerce.
 
-👉 **Order Page**: Track order history and status with reliable data stored in PostgreSQL (Neon), plus secure payments handled by Stripe integration.
+👉 **Member Accounts**: Shoppers can sign up, log in and manage their accounts.
+
+👉 **Owner Dashboard**: Store owners manage products, orders and the business from a dedicated dashboard.
+
+👉 **SEO Ready**: Server-rendered pages with SEO metadata managed through Wix.
+
+👉 **Funnel Analytics & Session Replays**: See exactly where shoppers drop off and replay their sessions to understand why.
+
+👉 **A/B Testing**: Run experiments to measure whether the 3D experience drives more sales.
+
+👉 **Optimized 3D Models**: A built-in script compresses and optimizes the 3D models and textures so they load fast in the browser.
+
+👉 **Near-Zero JavaScript Pages**: Astro ships static HTML and only hydrates the 3D customizer, keeping pages fast.
 
 And many more, including code architecture and reusability.
 
@@ -94,8 +111,7 @@ Make sure you have the following installed on your machine:
 **Cloning the Repository**
 
 ```bash
-git clone
-cd
+git clone 
 ```
 
 **Installation**
@@ -112,9 +128,10 @@ Create a new file named `.env` in the root of your project and add the following
 
 ```env
 
+
 ```
 
-Replace the placeholder values with your real credentials. You can get these by signing up at: [**Example**](https://jsm.dev/example).
+Replace the placeholder values with your real credentials. You can get these by signing up at: [**Wix**](https://www.wix.com/) and [**PostHog**](https://posthog.com/).
 
 **Running the Project**
 
@@ -122,11 +139,11 @@ Replace the placeholder values with your real credentials. You can get these by 
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser to view the project.
+Open [http://localhost:4321](http://localhost:4321) in your browser to view the project.
 
 ## <a name="links">🔗 Assets</a>
 
-Assets and snippets used in the project can be found in the **[video kit]()**.
+Assets and snippets used in the project can be found in the **[video kit](https://jsmastery.com/video-kit/e2bdc49f-a8bd-43be-ba52-948e8bc62f0a)**.
 
 <a href="" target="_blank">
   <img src="public/readme/readme-videokit.webp" alt="Video Kit Banner">
@@ -134,12 +151,11 @@ Assets and snippets used in the project can be found in the **[video kit]()**.
 
 ## <a name="more">🚀 More</a>
 
-**Advance your skills with Next.js Pro Course**
+**Advance your skills with our Pro Course**
 
 Enjoyed creating this project? Dive deeper into our PRO courses for a richer learning adventure. They're packed with
 detailed explanations, cool features, and exercises to boost your skills. Give it a go!
 
-<a href="" target="_blank">
+<a href="hhttps://jsm.dev/kix-engineer" target="_blank">
   <img src="public/readme/readme-jsmpro.webp" alt="Project Banner">
 </a>
-# sneakers-ecom_wix
