@@ -1,0 +1,290 @@
+// The product page's photos and 3D view (plans 09, 11): a thumbnail rail ending in the 3D View tile,
+// the main frame with prev/next arrows, an expand lightbox and the 3D pill. One activeIndex into the
+// gallery; a color pick (the kit's imageUrl) moves it to the photo with the same media key, so
+// thumbnails and arrows keep working after a pick. The 3D tile and pill swap the frame for the lazy
+// ShoeViewer, colored by resolvePreset; no WebGL, a load error, a 20 s timeout or a lost context
+// fall back to photos and turn 3D off for the visit. In 3D, a Customize pill opens the buy column's
+// panel (plan 12): the parent passes the custom colors back as customZones and drives the deep link
+// through the handle. With startIn3d (the 3D-first experiment, plan 14) the server renders the
+// loading state and the browser opens 3D on mount; the viewer mounts only in the browser, so
+// hydration matches the server HTML. The root is display: contents, so the rail and the frame are
+// grid items of the page layout (.pdp__top).
+import { ChevronLeft, ChevronRight, Images, LoaderCircle, Maximize, Palette, Rotate3d, X } from 'lucide-react';
+import { Component, Suspense, forwardRef, lazy, useCallback, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
+import { captureError, track } from '../../scripts/analytics';
+import { imgAttrs, mediaKey } from '../../wix/media';
+import { resolvePreset, type ColorGroup, type Preset, type ProductModel, type ZoneColors } from '../../wix/models/presets';
+
+type ShoeViewerType = typeof import('../storefront/ShoeViewer').default;
+// Client only: the server build never bundles three.
+const ShoeViewer = lazy<ShoeViewerType>(() =>
+  import.meta.env.SSR ? Promise.resolve({ default: (() => null) as unknown as ShoeViewerType }) : import('../storefront/ShoeViewer'),
+);
+
+interface Props {
+  name: string;
+  gallery: string[];
+  /** The photo for the shopper's color pick (useProductDetail().imageUrl); null before a pick. */
+  selectedImage: string | null;
+  /** Changes on every color pick, so re-picking the current color shows its photo again. */
+  selectionKey: number;
+  productId: string;
+  /** The ProductModels row; null disables the 3D controls. */
+  model: ProductModel | null;
+  /** Open in 3D instead of photos (plan 14); ignored without a model. */
+  startIn3d: boolean;
+  /** The color option group (selected choice, choice photos); null when the product has none. */
+  colors: ColorGroup | null;
+  /** Colors shown instead of the preset (a design); null shows the preset. */
+  customZones: ZoneColors | null;
+  /** The Customize panel is open (the pill's pressed state). */
+  panelOpen: boolean;
+  onCustomize: () => void;
+  /** The preset the 3D view resolves, reported whenever it changes. */
+  onPresetChange: (preset: Preset | null) => void;
+  on3dChange: (mode: Mode) => void;
+}
+
+export interface ProductGalleryHandle {
+  /** Opens 3D for a design; false when 3D can't open (no model, off for the visit, no WebGL). */
+  open3d: () => boolean;
+  /** Shows a short note in the frame ('' clears it). */
+  showNote: (text: string) => void;
+}
+
+export type Mode = 'photos' | 'loading' | '3d';
+type FailReason = 'no_webgl' | 'load_error' | 'timeout' | 'context_lost';
+
+const LOAD_TIMEOUT_MS = 20_000;
+const FAILED_NOTE = "3D view couldn't load. Showing photos.";
+
+function hasWebGL(): boolean {
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    return Boolean(gl);
+  } catch {
+    return false;
+  }
+}
+
+/** Catches a failed chunk import and a model that won't load. */
+class ViewerBoundary extends Component<{ onError: (error: unknown) => void; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error: unknown) {
+    this.props.onError(error);
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+export default forwardRef<ProductGalleryHandle, Props>(function ProductGallery(
+  { name, gallery, selectedImage, selectionKey, productId, model, startIn3d, colors, customZones, panelOpen, onCustomize, onPresetChange, on3dChange },
+  ref,
+) {
+  const [active, setActive] = useState(0);
+  // A picked photo that matches no gallery item; shown until the shopper next moves.
+  const [unmatched, setUnmatched] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>(startIn3d && model ? 'loading' : 'photos');
+  const [mounted, setMounted] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [note, setNote] = useState('');
+  const [spun, setSpun] = useState(false);
+  // The photo in the frame when 3D opened: its color shows until the shopper picks one.
+  const [openPhoto, setOpenPhoto] = useState<string | null>(null);
+  const modeRef = useRef<Mode>(mode);
+  modeRef.current = mode;
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const expandRef = useRef<HTMLButtonElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLButtonElement>(null);
+  const total = gallery.length;
+
+  useEffect(() => {
+    if (!selectedImage) return;
+    const key = mediaKey(selectedImage);
+    const index = gallery.findIndex((url) => mediaKey(url) === key);
+    if (index >= 0) {
+      setActive(index);
+      setUnmatched(null);
+    } else setUnmatched(selectedImage);
+    setNote('');
+  }, [selectedImage, selectionKey, gallery]);
+
+  const fail = useCallback((reason: FailReason, error?: unknown) => {
+    // The stage is about to unmount: keep keyboard focus in the gallery, on the pill.
+    if (frameRef.current?.contains(document.activeElement)) pillRef.current?.focus();
+    setMode('photos');
+    setFailed(true);
+    setNote(FAILED_NOTE);
+    track('product_3d_failed', { product_id: productId, reason });
+    if (error !== undefined) captureError(error, 'model_load');
+  }, [productId]);
+
+  useEffect(() => {
+    if (mode !== 'loading') return;
+    const timer = setTimeout(() => fail('timeout'), LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [mode, fail]);
+
+  const src = unmatched ?? gallery[active] ?? '';
+  const viewing3d = mode !== 'photos';
+  const available = model !== null && !failed;
+
+  // 3D first: open3d() returns early once the mode is loading, so the first mount does its checks.
+  useEffect(() => {
+    setMounted(true);
+    if (modeRef.current !== 'loading') return;
+    if (!hasWebGL()) return fail('no_webgl');
+    setOpenPhoto(src);
+    track('product_3d_opened', { product_id: productId, source: 'auto' });
+  }, []); // runs once, on mount
+
+  const show = (index: number) => {
+    setActive((index + total) % total);
+    setUnmatched(null);
+    setMode('photos');
+    setNote('');
+  };
+  const open3d = (source: 'pill' | 'thumbnail' | 'design'): boolean => {
+    if (!available) return false;
+    if (viewing3d) return true;
+    if (!hasWebGL()) {
+      fail('no_webgl');
+      return false;
+    }
+    setOpenPhoto(src);
+    setNote('');
+    setMode('loading');
+    track('product_3d_opened', { product_id: productId, source });
+    return true;
+  };
+  useImperativeHandle(ref, () => ({ open3d: () => open3d('design'), showNote: setNote }));
+  const onReady = useCallback(() => setMode((m) => (m === 'loading' ? '3d' : m)), []);
+  const onSpin = useCallback(() => setSpun(true), []);
+  const onContextLost = useCallback(() => { if (modeRef.current !== 'photos') fail('context_lost'); }, [fail]);
+  const onViewerError = useCallback((error: unknown) => fail('load_error', error), [fail]);
+
+  const preset = model ? resolvePreset(model, colors, openPhoto) : null;
+  // Keyed on the preset's fields: resolvePreset returns a new object each render.
+  useEffect(() => onPresetChange(preset), [preset?.choiceId, preset?.zones]);
+  useEffect(() => on3dChange(mode), [mode, on3dChange]);
+  const colorLabel = customZones ? 'custom colors' : preset?.colorName;
+  const viewerLabel = `${name} in 3D${colorLabel ? `, ${colorLabel}` : ''}. Drag or use arrow keys to spin.`;
+  const offLabel = model ? "3D view isn't available right now" : '3D view not available';
+
+  const alt = unmatched ? `${name}, selected color` : `${name}, photo ${active + 1} of ${total}`;
+  const photo = imgAttrs(src, '(min-width: 1024px) 46vw, (min-width: 768px) 48vw, 100vw');
+
+  return (
+    <div className="ui-gallery">
+      <ul className="ui-gallery__rail" aria-label="Photos">
+        {gallery.map((url, index) => (
+          <li key={`${index}-${url}`}>
+            <button
+              type="button"
+              className="ui-thumbnail"
+              aria-pressed={!viewing3d && !unmatched && index === active}
+              aria-label={`Show photo ${index + 1} of ${total}`}
+              onClick={() => show(index)}
+            >
+              <span className="ui-thumbnail__image"><img {...imgAttrs(url, '(min-width: 1024px) 9vw, 72px', 1 / 0.92)} alt="" /></span>
+            </button>
+          </li>
+        ))}
+        <li>
+          {available ? (
+            <button type="button" className="ui-thumbnail ui-thumbnail--3d" aria-pressed={viewing3d} aria-label="Show 3D view" onClick={() => open3d('thumbnail')}>
+              <span className="ui-thumbnail__image">
+                <Rotate3d aria-hidden="true" />
+                <span className="ui-thumbnail__label" aria-hidden="true">3D View</span>
+              </span>
+            </button>
+          ) : (
+            <button type="button" className="ui-thumbnail ui-thumbnail--3d ui-soon" aria-disabled="true" aria-label={offLabel} title={offLabel}>
+              <span className="ui-thumbnail__image">
+                <Rotate3d aria-hidden="true" />
+                <span className="ui-thumbnail__label" aria-hidden="true">3D View</span>
+              </span>
+            </button>
+          )}
+        </li>
+      </ul>
+
+      <div ref={frameRef} className="ui-gallery__frame" data-mode={mode}>
+        {'src' in photo ? (
+          <img {...photo} loading="eager" alt={mode === '3d' ? '' : alt} />
+        ) : (
+          <span className="ui-photo__fallback">Image placeholder</span>
+        )}
+        {viewing3d && model && mounted && (
+          <ViewerBoundary onError={onViewerError}>
+            <Suspense fallback={null}>
+              <ShoeViewer url={model.modelUrl} parts={model.parts} zones={customZones ?? preset?.zones ?? null} label={viewerLabel} onReady={onReady} onSpin={onSpin} onContextLost={onContextLost} />
+            </Suspense>
+          </ViewerBoundary>
+        )}
+        {mode === 'loading' && (
+          <span className="ui-gallery__loading" role="status">
+            <LoaderCircle aria-hidden="true" />Loading 3D…
+          </span>
+        )}
+        {mode === '3d' && !spun && <span className="ui-gallery__hint" aria-hidden="true">Drag to spin</span>}
+        <p className="ui-gallery__note" role="status">{note}</p>
+        {!viewing3d && 'src' in photo && (
+          <button ref={expandRef} type="button" className="ui-icon-button ui-gallery__expand" aria-label="View larger photo" title="View larger photo" onClick={() => dialogRef.current?.showModal()}>
+            <Maximize aria-hidden="true" />
+          </button>
+        )}
+        {!viewing3d && total > 1 && (
+          <>
+            <button type="button" className="ui-icon-button ui-icon-button--round ui-gallery__arrow ui-gallery__arrow--prev" aria-label="Previous photo" title="Previous photo" onClick={() => show(active - 1)}>
+              <ChevronLeft aria-hidden="true" />
+            </button>
+            <button type="button" className="ui-icon-button ui-icon-button--round ui-gallery__arrow ui-gallery__arrow--next" aria-label="Next photo" title="Next photo" onClick={() => show(active + 1)}>
+              <ChevronRight aria-hidden="true" />
+            </button>
+          </>
+        )}
+        <div className="ui-gallery__pills">
+          {!available ? (
+            <button ref={pillRef} type="button" className="ui-gallery__3d ui-soon" aria-disabled="true" aria-label={offLabel} title={offLabel}>
+              <Rotate3d aria-hidden="true" />3D
+            </button>
+          ) : viewing3d ? (
+            <button ref={pillRef} type="button" className="ui-gallery__3d" aria-label="Show photos" onClick={() => { setMode('photos'); setNote(''); }}>
+              <Images aria-hidden="true" />Photos
+            </button>
+          ) : (
+            <button ref={pillRef} type="button" className="ui-gallery__3d" aria-label="Show 3D view" onClick={() => open3d('pill')}>
+              <Rotate3d aria-hidden="true" />3D
+            </button>
+          )}
+          {mode === '3d' && preset && (
+            <button type="button" id="pdp-customize-pill" className="ui-gallery__3d" aria-expanded={panelOpen} aria-controls="pdp-customize" onClick={onCustomize}>
+              <Palette aria-hidden="true" />Customize
+            </button>
+          )}
+        </div>
+      </div>
+
+      <dialog
+        ref={dialogRef}
+        className="ui-lightbox"
+        aria-label={`${name} photo`}
+        onClick={(event) => { if (event.target === event.currentTarget) dialogRef.current?.close(); }}
+        onClose={() => expandRef.current?.focus()}
+      >
+        {'src' in photo && <img {...imgAttrs(src, 'min(90vw, 90vh)')} alt={alt} />}
+        <button type="button" className="ui-icon-button ui-icon-button--round ui-lightbox__close" aria-label="Close photo" title="Close photo" onClick={() => dialogRef.current?.close()}>
+          <X aria-hidden="true" />
+        </button>
+      </dialog>
+    </div>
+  );
+});

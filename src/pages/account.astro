@@ -1,0 +1,216 @@
+---
+// Account: the signed-in member's profile, a name form, a password reset link and sign out
+// (plan 05). Read on the server as the member; a visitor goes to sign in. Replaces the kit's
+// React shell (AccountPage/RequireAuth), which stays in src/components/members/ unused. Saved Designs
+// (plan 12) are read here as the member; Delete runs in the browser (saved-designs.ts). Orders
+// (plan 13) are read here too, filtered to this member; orders.ts reports a failed read.
+import { Trash2 } from '@lucide/astro';
+import Avatar from '../components/ui/Avatar.astro';
+import Button from '../components/ui/Button.astro';
+import FormAlert from '../components/ui/FormAlert.astro';
+import FormCard from '../components/ui/FormCard.astro';
+import TextField from '../components/ui/TextField.astro';
+import SiteLayout from '../layouts/SiteLayout.astro';
+import { logoutAction } from '../scripts/return-to';
+import { designLink } from '../wix/models/design-code';
+import { fetchCurrentMember } from '../wix/members/members';
+import { listDesigns, type SavedDesign } from '../wix/models/designs';
+import { paletteName } from '../wix/models/palette';
+import { ZONES } from '../wix/models/presets';
+import { imgAttrs } from '../wix/media';
+import { fetchMemberOrders } from '../wix/storefront/member-orders';
+import { orderBadge, type OrderSummary } from '../wix/storefront/orders';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const member = await fetchCurrentMember();
+if (!member) return Astro.redirect('/login?returnTo=%2Faccount');
+
+// Designs and orders in parallel (1 + 2 sub-requests); a failure shows its message and is reported
+// from the browser (no analytics here).
+let designs: SavedDesign[] = [];
+let designsFailed = false;
+let orders: OrderSummary[] = [];
+let ordersFailed = false;
+const [designsRead, ordersRead] = await Promise.allSettled([listDesigns(member.id, { limit: 50 }), fetchMemberOrders(member.id, 10)]);
+if (designsRead.status === 'fulfilled') designs = designsRead.value;
+else {
+  designsFailed = true;
+  console.error('[account] saved designs read failed', designsRead.reason);
+}
+if (ordersRead.status === 'fulfilled') orders = ordersRead.value;
+else {
+  ordersFailed = true;
+  console.error('[account] orders read failed', ordersRead.reason);
+}
+// UTC here; orders.ts rewrites each <time> in the shopper's time zone.
+const orderDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+// UTC here; saved-designs.ts rewrites each <time> in the shopper's time zone, as the product page shows it.
+const savedDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+const zoneLabel = { upper: 'upper', sole: 'sole', laces: 'laces', accent: 'accent' } as const;
+const colorsOf = (design: SavedDesign) => ZONES.filter((z) => design.zones[z]).map((z) => ({ zone: z, hex: design.zones[z]! }));
+const describe = (design: SavedDesign) => colorsOf(design).map(({ zone, hex }) => `${zoneLabel[zone]} ${paletteName(hex)?.toLowerCase() ?? 'original'}`).join(', ');
+
+// memberSince is "YYYY-MM-DD" (UTC); format in UTC so the 1st doesn't become the month before.
+const memberSince = member.memberSince
+  ? new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${member.memberSince}T00:00:00Z`))
+  : '';
+---
+
+<SiteLayout title="Account · Kix" description="Your Kix account.">
+  <div class="account" data-account data-member-id={member.id} data-login-email={member.loginEmail}>
+    <div class="account__head">
+      <Avatar name={member.displayName} photoUrl={member.photoUrl} size="lg" className="account__avatar" />
+      <div class="account__heading">
+        <h1 class="account__title">Account</h1>
+        {memberSince && <p class="account__since">Member since {memberSince}</p>}
+      </div>
+      <form class="account__signout" method="post" action={logoutAction('/')}>
+        <Button type="submit" variant="secondary" label="Sign out" />
+      </form>
+    </div>
+
+    <div class="account__cards">
+      <FormCard title="Profile" level={2}>
+        <form class="auth-form" method="post" data-account-name-form>
+          {member.loginEmail && (
+            <div class="account__field">
+              <p class="account__label">Email</p>
+              <p class="account__value">{member.loginEmail}</p>
+            </div>
+          )}
+          <div class="auth-form__names">
+            <TextField id="account-first-name" label="First name" labelVisible placeholder="First name" autocomplete="given-name" maxlength={50} required size="lg" value={member.firstName} errors />
+            <TextField id="account-last-name" label="Last name" labelVisible placeholder="Last name" autocomplete="family-name" maxlength={50} required size="lg" value={member.lastName} errors />
+          </div>
+          <FormAlert className="auth-form__alert" />
+          <Button type="submit" size="form" label="Save changes" busyLabel="Saving…" disabled className="auth-form__submit" />
+          <p class="sr-only" aria-live="polite" data-form-status></p>
+        </form>
+      </FormCard>
+
+      <FormCard title="Password" level={2}>
+        <form class="auth-form" method="post" data-account-reset-form>
+          <p class="auth-form__intro">We'll email <strong>{member.loginEmail}</strong> a link to set a new password. It works for 3 hours.</p>
+          <FormAlert className="auth-form__alert" />
+          <Button type="submit" variant="secondary" size="form" label="Send reset link" busyLabel="Sending…" disabled className="auth-form__submit" />
+          <p class="sr-only" aria-live="polite" data-form-status></p>
+        </form>
+      </FormCard>
+
+      <FormCard title="Orders" level={2} className="account__orders">
+        <div data-orders data-orders-error={ordersFailed ? '' : undefined}>
+          {ordersFailed ? (
+            <p class="ui-design-list__empty">We couldn't load your orders. Refresh to try again.</p>
+          ) : orders.length === 0 ? (
+            <p class="ui-design-list__empty">No orders yet. <a href="/shop">Find your pair</a></p>
+          ) : (
+            <ul class="ui-order-list">
+              {orders.map((order) => {
+                const badge = orderBadge(order);
+                return (
+                  <li class="ui-order">
+                    <div class="ui-order-head">
+                      <div>
+                        <h3 class="ui-order-head__title">{order.number ? `Order #${order.number}` : 'Order'}</h3>
+                        {order.createdDate && <p class="ui-order-head__meta"><time datetime={order.createdDate} data-order-date>{orderDate.format(new Date(order.createdDate))}</time> · {order.itemCount} {order.itemCount === 1 ? 'item' : 'items'}</p>}
+                      </div>
+                      <span class={`ui-badge ui-badge--${badge.tone}`}>{badge.label}</span>
+                      <p class="ui-order-head__total"><span class="sr-only">Total </span>{order.total}</p>
+                    </div>
+                    <ul class="ui-order-lines">
+                      {order.lines.map((line) => {
+                        const image = imgAttrs(line.imageUrl, '72px');
+                        return (
+                          <li class="ui-order-line">
+                            <span class="ui-photo ui-order-line__media ui-tone--sand">
+                              {'src' in image ? <img {...image} alt="" /> : <span class="ui-photo__fallback">Image placeholder</span>}
+                            </span>
+                            <div class="ui-order-line__body">
+                              <p class="ui-order-line__name">
+                                {line.productSlug ? <a href={`/products/${encodeURIComponent(line.productSlug)}`}>{line.name}</a> : line.name}
+                                {line.quantity > 1 && <span class="ui-order-line__qty"> × {line.quantity}</span>}
+                                {line.designCode && <span class="ui-badge ui-badge--custom">Custom</span>}
+                              </p>
+                              <p class="ui-order-line__meta">{[line.color, ...line.details].filter(Boolean).join(' · ')}</p>
+                              {line.designCode && (
+                                <p class="ui-order-line__design">
+                                  Design {line.designCode}
+                                  {line.productSlug && <> · <a href={designLink(line.productSlug, line.designCode, line.color)}>See it in 3D</a></>}
+                                </p>
+                              )}
+                            </div>
+                            <p class="ui-order-line__price">{line.price}</p>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </FormCard>
+
+      <FormCard title="Saved Designs" level={2} className="account__designs">
+        <div data-saved-designs data-designs-error={designsFailed ? '' : undefined}>
+          {designsFailed ? (
+            <p class="ui-design-list__empty">We couldn't load your saved designs. Refresh to try again.</p>
+          ) : designs.length === 0 ? (
+            <p class="ui-design-list__empty" data-designs-empty>No saved designs yet. <a href="/shop">Find a pair to customize</a></p>
+          ) : (
+            <>
+              <ul class="ui-design-list">
+                {designs.map((design) => {
+                  const href = `/products/${encodeURIComponent(design.productSlug)}?design=${encodeURIComponent(design.id)}`;
+                  // Several designs of one shoe: the base color and date tell their buttons apart.
+                  const name = `${design.title || 'design'}${design.baseColor ? `, ${design.baseColor}` : ''}, saved ${savedDate.format(new Date(design.savedAt))}`;
+                  return (
+                    <li class="ui-design-row" data-design-row data-design-id={design.id} data-product-id={design.productId}>
+                      <span class="ui-design-dots" aria-hidden="true">
+                        {colorsOf(design).map(({ hex }) => <span style={`--swatch-color: ${hex}`} />)}
+                      </span>
+                      <div class="ui-design-row__text">
+                        <a class="ui-design-row__name" href={href}>{design.title || 'Kix sneaker'}</a>
+                        <p class="ui-design-row__meta">
+                          {design.baseColor && <>{design.baseColor} · </>}Saved <time datetime={design.savedAt} data-saved-at>{savedDate.format(new Date(design.savedAt))}</time>
+                          <span class="sr-only">. Colors: {describe(design)}</span>
+                        </p>
+                      </div>
+                      <div class="ui-design-row__actions" data-design-actions>
+                        <a class="ui-button ui-button--quiet ui-design-row__open" href={href} aria-label={`Open ${name}`} data-design-label>Open</a>
+                        <button type="button" class="ui-icon-button ui-design-row__delete" aria-label={`Delete ${name}`} data-design-label title="Delete design" data-design-delete>
+                          <Trash2 aria-hidden="true" />
+                        </button>
+                      </div>
+                      <div class="ui-design-row__confirm" data-design-confirm hidden>
+                        <p class="ui-design-row__ask">Delete this design?</p>
+                        <button type="button" class="ui-button ui-button--primary ui-design-row__yes" data-design-yes>Delete</button>
+                        <button type="button" class="ui-text-button" data-design-keep>Keep</button>
+                      </div>
+                      <p class="ui-status-line ui-status-line--error ui-design-row__error" data-design-error></p>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p class="ui-design-list__empty" data-designs-empty hidden>No saved designs yet. <a href="/shop">Find a pair to customize</a></p>
+            </>
+          )}
+          <p class="sr-only" aria-live="polite" data-designs-status></p>
+        </div>
+      </FormCard>
+    </div>
+  </div>
+</SiteLayout>
+
+<script>
+  import { initAccount } from '../scripts/account';
+  import { initOrders } from '../scripts/orders';
+  import { initSavedDesigns } from '../scripts/saved-designs';
+  const root = document.querySelector<HTMLElement>('[data-account]');
+  if (root) initAccount(root);
+  const designs = document.querySelector<HTMLElement>('[data-saved-designs]');
+  if (designs) initSavedDesigns(designs);
+  const orders = document.querySelector<HTMLElement>('[data-orders]');
+  if (orders) initOrders(orders);
+</script>

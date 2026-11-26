@@ -1,0 +1,22 @@
+---
+interface Props {
+  label: string;
+  dark?: boolean;
+  disabled?: boolean;
+  preview?: boolean;
+  className?: string;
+  href?: string;
+  type?: 'button' | 'submit';
+  shape?: 'square' | 'round' | 'tile' | 'field' | 'plain';
+  attrs?: Record<string, string>;
+}
+const { label, dark = false, disabled = false, preview = false, className = '', href, type = 'button', shape = 'square', attrs = {} } = Astro.props;
+const classes = ['ui-icon-button', `ui-icon-button--${shape}`, { 'ui-icon-button--dark': dark }, className];
+---
+{href ? (
+  <a href={href} aria-label={label} title={label} class:list={classes} {...attrs}><slot /></a>
+) : (
+  <button type={type} aria-label={label} title={label} disabled={disabled} data-preview-action={preview ? '' : undefined} class:list={classes} {...attrs}>
+    <slot />
+  </button>
+)}

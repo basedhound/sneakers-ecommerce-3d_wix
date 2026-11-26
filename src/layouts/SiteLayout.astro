@@ -1,0 +1,66 @@
+---
+// Site chrome for storefront pages, shaped like the Headless kit's SiteLayout (seo-tags slot,
+// title/description props, global.css import). Wiring Wix adds the kit's CartButton and
+// CartDrawer mounts and reads the nav categories with fetchCategories() (plan 03). AccountMenu is
+// the member control (plan 05). PostHog loads analytics (plan 06). BagButton adds the live cart
+// count to the bag link, with the plain link as its fallback (plan 09). A page that picked an
+// experiment version on the server passes posthogBootstrap (plan 14).
+import { Font } from 'astro:assets';
+import { ShoppingBag } from '@lucide/astro';
+import AccountMenu from '../components/AccountMenu.astro';
+import BagButton from '../components/storefront/BagButton';
+import PostHog from '../components/PostHog.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import IconButton from '../components/ui/IconButton.astro';
+import SiteNav from '../components/ui/SiteNav.astro';
+import Wordmark from '../components/ui/Wordmark.astro';
+import { navCategories } from '../data/mock';
+import '../styles/global.css';
+import type { PostHogBootstrap } from '../scripts/flags-server';
+import '../styles/site.css';
+
+interface Props {
+  title: string;
+  description?: string;
+  posthogBootstrap?: PostHogBootstrap;
+}
+const { title, description, posthogBootstrap } = Astro.props;
+const navItems = [
+  ...navCategories.map((category) => ({ label: category.name, href: `/category/${category.slug}` })),
+  { label: 'Customize', href: '/customize' },
+  { label: 'Membership', href: '/membership' },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    {!Astro.slots.has('seo-tags') && <title>{title}</title>}
+    {description && <meta name="description" content={description} />}
+    <Font cssVariable="--font-barlow" preload={[{ weight: '700', style: 'normal' }]} />
+    <PostHog bootstrap={posthogBootstrap} />
+    <slot name="seo-tags" />
+  </head>
+  <body class="site">
+    <a class="site-skip" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="site-header__bar">
+        <Wordmark />
+        <SiteNav items={navItems} className="site-header__nav" />
+        <div class="site-header__actions">
+          <BagButton client:only="react">
+            <IconButton slot="fallback" href="/cart" label="Bag" shape="plain"><ShoppingBag /></IconButton>
+          </BagButton>
+          <AccountMenu />
+        </div>
+      </div>
+    </header>
+    <main id="main">
+      <slot />
+    </main>
+    <SiteFooter />
+  </body>
+</html>
