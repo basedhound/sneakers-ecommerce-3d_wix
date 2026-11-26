@@ -111,7 +111,7 @@ Make sure you have the following installed on your machine:
 **Cloning the Repository**
 
 ```bash
-git clone 
+git clone [git remote URL]
 ```
 
 **Installation**
@@ -127,7 +127,14 @@ npm install
 Create a new file named `.env` in the root of your project and add the following content:
 
 ```env
+WIX_CLOUD_PROVIDER="KUBERNETES"
+WIX_CLIENT_ID=
+WIX_CLIENT_INSTANCE_ID=
+WIX_CLIENT_PUBLIC_KEY=
+WIX_CLIENT_SECRET=
 
+PUBLIC_POSTHOG_PROJECT_TOKEN=
+PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 
 ```
 
